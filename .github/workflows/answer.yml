@@ -1,0 +1,44 @@
+name: Answer quiz rounds
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes (GitHub sometimes runs these late)
+  workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: answer-quiz
+  cancel-in-progress: false
+
+jobs:
+  answer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Only needed if you add an ANTHROPIC_API_KEY secret for the fallback.
+      - run: pip install anthropic
+
+      - name: Answer new rounds
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python solve.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "quiz-bot"
+          git config user.email "quiz-bot@users.noreply.github.com"
+          git add answers
+          if git diff --cached --quiet; then
+            echo "No new rounds."
+          else
+            git commit -m "Answer new rounds"
+            git pull --rebase
+            git push
+          fi
